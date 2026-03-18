@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-primary: #c084fc;
+  --color-primary-hover: #a855f7;
+  --color-primary-deep: #8A00C4;
+}
