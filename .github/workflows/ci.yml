@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,7 +17,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '22'
-        cache: 'npm'
 
     - name: Install dependencies
       run: npm install
@@ -30,6 +29,3 @@ jobs:
 
     - name: Run tests
       run: npm test -- --ci --coverage
-
-    - name: Build
-      run: npm run build
