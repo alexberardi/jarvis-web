@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   AuthUser,
   fetchHouseholds,
@@ -11,7 +11,14 @@ import {
   setLogoutFunction,
 } from "@/lib/api";
 
-interface AuthState {
+interface AuthData {
+  user: AuthUser | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  householdId: string | null;
+}
+
+interface AuthContextValue {
   user: AuthUser | null;
   accessToken: string | null;
   householdId: string | null;
@@ -20,95 +27,90 @@ interface AuthState {
   logout: () => void;
 }
 
-const AuthContext = createContext<AuthState | null>(null);
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+function loadStoredAuth(): AuthData {
+  if (typeof window === "undefined") return { user: null, accessToken: null, refreshToken: null, householdId: null };
+  try {
+    const raw = localStorage.getItem("jarvis_auth");
+    if (!raw) return { user: null, accessToken: null, refreshToken: null, householdId: null };
+    const parsed = JSON.parse(raw);
+    // Side-effect: configure axios header on load
+    if (parsed.accessToken) setAuthToken(parsed.accessToken);
+    return {
+      user: parsed.user ?? null,
+      accessToken: parsed.accessToken ?? null,
+      refreshToken: parsed.refreshToken ?? null,
+      householdId: parsed.householdId ?? null,
+    };
+  } catch {
+    localStorage.removeItem("jarvis_auth");
+    return { user: null, accessToken: null, refreshToken: null, householdId: null };
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [refreshTokenValue, setRefreshTokenValue] = useState<string | null>(null);
-  const [householdId, setHouseholdId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [auth, setAuth] = useState<AuthData>(loadStoredAuth);
+  const [loading, setLoading] = useState(false);
+  const authRef = useRef(auth);
+  authRef.current = auth;
 
-  // Restore from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem("jarvis_auth");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setUser(parsed.user);
-        setAccessToken(parsed.accessToken);
-        setRefreshTokenValue(parsed.refreshToken);
-        setHouseholdId(parsed.householdId ?? null);
-        setAuthToken(parsed.accessToken);
-      } catch {
-        localStorage.removeItem("jarvis_auth");
-      }
-    }
-    setLoading(false);
+  const persistAuth = useCallback((data: AuthData) => {
+    setAuth(data);
+    setAuthToken(data.accessToken);
+    localStorage.setItem("jarvis_auth", JSON.stringify(data));
   }, []);
 
-  // If authenticated but no householdId (e.g. old localStorage), fetch it
-  useEffect(() => {
-    if (accessToken && !householdId) {
-      fetchHouseholds(accessToken).then((households) => {
-        if (households.length > 0) {
-          const hId = households[0].id;
-          setHouseholdId(hId);
-          // Update localStorage
-          const stored = localStorage.getItem("jarvis_auth");
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            parsed.householdId = hId;
-            localStorage.setItem("jarvis_auth", JSON.stringify(parsed));
-          }
-        }
-      }).catch(() => {});
-    }
-  }, [accessToken, householdId]);
-
-  const persist = useCallback(
-    (u: AuthUser, at: string, rt: string, hId: string | null) => {
-      setUser(u);
-      setAccessToken(at);
-      setRefreshTokenValue(rt);
-      setHouseholdId(hId);
-      setAuthToken(at);
-      localStorage.setItem(
-        "jarvis_auth",
-        JSON.stringify({ user: u, accessToken: at, refreshToken: rt, householdId: hId }),
-      );
-    },
-    [],
-  );
-
   const logout = useCallback(() => {
-    setUser(null);
-    setAccessToken(null);
-    setRefreshTokenValue(null);
-    setHouseholdId(null);
+    setAuth({ user: null, accessToken: null, refreshToken: null, householdId: null });
     setAuthToken(null);
     localStorage.removeItem("jarvis_auth");
   }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const res = await apiLogin(email, password);
-      // Fetch households and auto-select first one
-      setAuthToken(res.access_token);
-      const households = await fetchHouseholds(res.access_token);
-      const hId = households.length > 0 ? households[0].id : null;
-      persist(res.user, res.access_token, res.refresh_token, hId);
+      setLoading(true);
+      try {
+        const res = await apiLogin(email, password);
+        setAuthToken(res.access_token);
+        const households = await fetchHouseholds(res.access_token);
+        const hId = households.length > 0 ? households[0].id : null;
+        persistAuth({
+          user: res.user,
+          accessToken: res.access_token,
+          refreshToken: res.refresh_token,
+          householdId: hId,
+        });
+      } finally {
+        setLoading(false);
+      }
     },
-    [persist],
+    [persistAuth],
   );
 
-  // Wire up interceptor refresh
+  // If authenticated but no householdId (e.g. old localStorage), fetch it
+  useEffect(() => {
+    if (!auth.accessToken || auth.householdId) return;
+    fetchHouseholds(auth.accessToken).then((households) => {
+      if (households.length > 0) {
+        persistAuth({ ...authRef.current, householdId: households[0].id });
+      }
+    }).catch(() => {});
+  }, [auth.accessToken, auth.householdId, persistAuth]);
+
+  // Wire up axios interceptor refresh
   useEffect(() => {
     setRefreshFunction(async () => {
-      if (!refreshTokenValue) return null;
+      const rt = authRef.current.refreshToken;
+      if (!rt) return null;
       try {
-        const res = await apiRefresh(refreshTokenValue);
-        persist(res.user, res.access_token, res.refresh_token, householdId);
+        const res = await apiRefresh(rt);
+        persistAuth({
+          ...authRef.current,
+          user: res.user,
+          accessToken: res.access_token,
+          refreshToken: res.refresh_token,
+        });
         return res.access_token;
       } catch {
         logout();
@@ -116,16 +118,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
     setLogoutFunction(logout);
-  }, [refreshTokenValue, householdId, persist, logout]);
+  }, [persistAuth, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, householdId, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user: auth.user,
+        accessToken: auth.accessToken,
+        householdId: auth.householdId,
+        loading,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth(): AuthState {
+export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
