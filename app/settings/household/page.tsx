@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -14,8 +15,6 @@ import {
   updateHouseholdName,
   updateMemberRole,
   validateInviteCode,
-  type HouseholdMember,
-  type InviteCode,
 } from "@/lib/api";
 import { Check, ClipboardCopy, Plus, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,10 +38,8 @@ export default function HouseholdSettingsPage() {
   const { user, householdId, households, loading: authLoading, refreshHouseholds } = useAuth();
   const router = useRouter();
 
-  const [members, setMembers] = useState<HouseholdMember[]>([]);
-  const [invites, setInvites] = useState<InviteCode[]>([]);
   const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState("");
+  const [nameOverride, setNameOverride] = useState<string | null>(null);
 
   // Invite creation
   const [showCreateInvite, setShowCreateInvite] = useState(false);
@@ -56,51 +53,40 @@ export default function HouseholdSettingsPage() {
   const [joinStatus, setJoinStatus] = useState<{ valid: boolean; household_name: string | null } | null>(null);
   const [joinError, setJoinError] = useState("");
 
-  const activeHousehold = households.find((h) => h.id === householdId);
-  const myMembership = members.find((m) => m.user_id === user?.id);
-  const isAdmin = myMembership?.role === "admin";
-
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
-  const [loadError, setLoadError] = useState("");
+  const { data: members = [], error: membersError, refetch: refetchMembers } = useQuery({
+    queryKey: ["household-members", householdId],
+    queryFn: () => listMembers(householdId!),
+    enabled: !!householdId,
+  });
 
-  const loadData = useCallback(async () => {
-    if (!householdId) return;
-    setLoadError("");
+  const { data: invites = [], refetch: refetchInvites } = useQuery({
+    queryKey: ["household-invites", householdId],
+    queryFn: () => listInvites(householdId!),
+    enabled: !!householdId,
+  });
 
-    // Load independently so one failure doesn't block the other
-    const [membersResult, invitesResult] = await Promise.allSettled([
-      listMembers(householdId),
-      listInvites(householdId),
-    ]);
+  const activeHousehold = households.find((h) => h.id === householdId);
+  const myMembership = members.find((m) => m.user_id === user?.id);
+  const isAdmin = myMembership?.role === "admin";
 
-    if (membersResult.status === "fulfilled") {
-      setMembers(membersResult.value);
-    } else {
-      console.error("Failed to load members:", membersResult.reason);
-      setLoadError("Failed to load members");
-    }
-
-    if (invitesResult.status === "fulfilled") {
-      setInvites(invitesResult.value);
-    } else {
-      console.error("Failed to load invites:", invitesResult.reason);
-    }
-  }, [householdId]);
-
-  useEffect(() => {
-    loadData();
-    setNameInput(activeHousehold?.name ?? "");
-  }, [loadData, activeHousehold?.name]);
-
+  const loadError = membersError ? "Failed to load members" : "";
   const householdName = activeHousehold?.name ?? "";
+  const nameInput = nameOverride ?? householdName;
+
+  const loadData = useCallback(() => {
+    refetchMembers();
+    refetchInvites();
+  }, [refetchMembers, refetchInvites]);
 
   const handleSaveName = async () => {
     if (!householdId || !nameInput.trim()) return;
     await updateHouseholdName(householdId, nameInput.trim());
     setEditingName(false);
+    setNameOverride(null);
     refreshHouseholds();
   };
 
@@ -195,14 +181,14 @@ export default function HouseholdSettingsPage() {
                   <div className="flex items-center gap-2">
                     <input
                       value={nameInput}
-                      onChange={(e) => setNameInput(e.target.value)}
+                      onChange={(e) => setNameOverride(e.target.value)}
                       className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-primary"
                       autoFocus
                     />
                     <button onClick={handleSaveName} className="rounded-lg bg-primary-deep px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-hover">
                       Save
                     </button>
-                    <button onClick={() => { setEditingName(false); setNameInput(householdName); }} className="p-1 text-zinc-500 hover:text-zinc-300">
+                    <button onClick={() => { setEditingName(false); setNameOverride(null); }} className="p-1 text-zinc-500 hover:text-zinc-300">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
