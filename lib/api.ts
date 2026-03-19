@@ -61,6 +61,23 @@ export async function login(email: string, password: string): Promise<TokenRespo
   return data;
 }
 
+interface RegisterResponse extends TokenResponse {
+  household_id: string;
+}
+
+export async function register(
+  email: string,
+  password: string,
+  username?: string,
+): Promise<RegisterResponse> {
+  const { data } = await apiClient.post<RegisterResponse>("/api/auth/register", {
+    email,
+    password,
+    ...(username ? { username } : {}),
+  });
+  return data;
+}
+
 export async function refreshToken(token: string): Promise<TokenResponse> {
   const { data } = await apiClient.post<TokenResponse>("/api/auth/refresh", {
     refresh_token: token,

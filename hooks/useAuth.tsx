@@ -5,6 +5,7 @@ import {
   AuthUser,
   fetchHouseholds,
   login as apiLogin,
+  register as apiRegister,
   refreshToken as apiRefresh,
   setAuthToken,
   setRefreshFunction,
@@ -24,6 +25,7 @@ interface AuthContextValue {
   householdId: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, username?: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -92,6 +94,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persistAuth],
   );
 
+  const registerUser = useCallback(
+    async (email: string, password: string, username?: string) => {
+      setLoading(true);
+      try {
+        const res = await apiRegister(email, password, username);
+        persistAuth({
+          user: res.user,
+          accessToken: res.access_token,
+          refreshToken: res.refresh_token,
+          householdId: res.household_id,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [persistAuth],
+  );
+
   // If authenticated but no householdId (e.g. old localStorage), fetch it
   useEffect(() => {
     if (!auth.accessToken || auth.householdId) return;
@@ -132,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         householdId: auth.householdId,
         loading: loading || !hydrated,
         login,
+        register: registerUser,
         logout,
       }}
     >
