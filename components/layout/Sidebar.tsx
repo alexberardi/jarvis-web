@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { getUnreadCount } from "@/lib/api";
-import { Inbox, LogOut, MessageSquare, Power, Settings } from "lucide-react";
+import { Check, ChevronDown, Inbox, LogOut, MessageSquare, Power, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -17,8 +17,10 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, accessToken, logout } = useAuth();
+  const { user, accessToken, householdId, households, logout, switchHousehold } = useAuth();
   const [unread, setUnread] = useState(0);
+  const [showSwitcher, setShowSwitcher] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -29,10 +31,57 @@ export function Sidebar() {
     return () => clearInterval(interval);
   }, [accessToken]);
 
+  // Close switcher on outside click
+  useEffect(() => {
+    if (!showSwitcher) return;
+    const handler = (e: MouseEvent) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
+        setShowSwitcher(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSwitcher]);
+
+  const activeHousehold = households.find((h) => h.id === householdId);
+
   return (
     <aside className="flex w-56 flex-col border-r border-zinc-800 bg-zinc-950">
-      <div className="flex h-14 items-center gap-2 border-b border-zinc-800 px-4">
-        <span className="text-lg font-semibold text-primary">Jarvis</span>
+      <div className="border-b border-zinc-800 px-4">
+        <div className="flex h-14 items-center gap-2">
+          <span className="text-lg font-semibold text-primary">Jarvis</span>
+        </div>
+        {households.length > 0 && (
+          <div className="relative pb-3" ref={switcherRef}>
+            <button
+              onClick={() => setShowSwitcher(!showSwitcher)}
+              className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-zinc-200"
+            >
+              <span className="truncate">{activeHousehold?.name ?? "Select household"}</span>
+              <ChevronDown className={cn("h-3 w-3 shrink-0 transition-transform", showSwitcher && "rotate-180")} />
+            </button>
+            {showSwitcher && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-lg">
+                {households.map((h) => (
+                  <button
+                    key={h.id}
+                    onClick={async () => {
+                      if (h.id !== householdId) await switchHousehold(h.id);
+                      setShowSwitcher(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-zinc-800",
+                      h.id === householdId ? "text-primary" : "text-zinc-300",
+                    )}
+                  >
+                    {h.name}
+                    {h.id === householdId && <Check className="ml-auto h-3 w-3" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1 px-2 py-3">

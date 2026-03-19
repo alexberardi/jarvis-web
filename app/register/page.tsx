@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { validateInviteCode } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AxiosError } from "axios";
 import { Check, X } from "lucide-react";
@@ -24,12 +25,25 @@ function PasswordRule({ met, label }: { met: boolean; label: string }) {
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteStatus, setInviteStatus] = useState<{ valid: boolean; household_name: string | null } | null>(null);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const handleInviteBlur = useCallback(async () => {
+    const code = inviteCode.trim();
+    if (!code) { setInviteStatus(null); return; }
+    try {
+      const res = await validateInviteCode(code);
+      setInviteStatus(res);
+    } catch {
+      setInviteStatus({ valid: false, household_name: null });
+    }
+  }, [inviteCode]);
 
   const isValidEmail = useMemo(() => /\S+@\S+\.\S+/.test(email.trim()), [email]);
 
@@ -54,7 +68,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await register(email.trim(), password, username.trim() || undefined);
+      await register(email.trim(), password, username.trim() || undefined, inviteCode.trim() || undefined);
       router.replace("/chat");
     } catch (err) {
       if (err instanceof AxiosError) {
@@ -81,6 +95,32 @@ export default function RegisterPage() {
           {error && (
             <p className="rounded-lg bg-red-900/30 px-3 py-2 text-sm text-red-400">{error}</p>
           )}
+
+          <div>
+            <label htmlFor="reg-invite" className="mb-1 block text-xs font-medium text-zinc-400">
+              Invite code <span className="text-zinc-600">(optional)</span>
+            </label>
+            <input
+              id="reg-invite"
+              type="text"
+              value={inviteCode}
+              onChange={(e) => { setInviteCode(e.target.value.toUpperCase()); setInviteStatus(null); }}
+              onBlur={handleInviteBlur}
+              placeholder="e.g. K7NP3RWX"
+              autoComplete="off"
+              maxLength={8}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 font-mono text-sm tracking-widest text-zinc-100 placeholder-zinc-500 outline-none focus:border-primary"
+            />
+            {inviteStatus?.valid && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-green-400">
+                <Check className="h-3 w-3" />
+                You&apos;ll join: {inviteStatus.household_name}
+              </p>
+            )}
+            {inviteStatus && !inviteStatus.valid && (
+              <p className="mt-1 text-xs text-red-400">Invalid or expired invite code</p>
+            )}
+          </div>
 
           <div>
             <label htmlFor="reg-email" className="mb-1 block text-xs font-medium text-zinc-400">

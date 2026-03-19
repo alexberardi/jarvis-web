@@ -4,10 +4,11 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { LogOut, User } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Home, LogOut, User } from "lucide-react";
 
 export default function SettingsPage() {
-  const { user, householdId, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -44,12 +45,21 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {householdId && (
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-                    <p className="text-xs text-zinc-500">Household ID</p>
-                    <p className="mt-1 font-mono text-xs text-zinc-400">{householdId}</p>
+                <Link
+                  href="/settings/household"
+                  className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:bg-zinc-800"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Home className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-zinc-100">Household</p>
+                      <p className="text-xs text-zinc-500">Members, invites, settings</p>
+                    </div>
                   </div>
-                )}
+                  <ChevronRight className="h-4 w-4 text-zinc-600" />
+                </Link>
 
                 <button
                   onClick={() => { logout(); router.replace("/login"); }}

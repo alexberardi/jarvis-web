@@ -46,14 +46,18 @@ export default function ChatPage() {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
-  // Load nodes
+  // Load nodes (filtered to current household)
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken || !householdId) return;
     fetchNodes().then((n) => {
-      setNodes(n);
-      if (n.length > 0 && !selectedNode) setSelectedNode(n[0]);
+      const filtered = n.filter((node) => node.household_id === householdId);
+      setNodes(filtered);
+      if (filtered.length > 0 && !selectedNode) setSelectedNode(filtered[0]);
+      if (selectedNode && !filtered.some((node) => node.node_id === selectedNode.node_id)) {
+        setSelectedNode(filtered[0] ?? null);
+      }
     });
-  }, [accessToken, selectedNode]);
+  }, [accessToken, householdId, selectedNode]);
 
   // Auto-scroll on new messages
   useEffect(() => {

@@ -3,10 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   AuthUser,
+  Household,
   fetchHouseholds,
   login as apiLogin,
   register as apiRegister,
   refreshToken as apiRefresh,
+  switchHousehold as apiSwitchHousehold,
   setAuthToken,
   setRefreshFunction,
   setLogoutFunction,
@@ -23,10 +25,13 @@ interface AuthContextValue {
   user: AuthUser | null;
   accessToken: string | null;
   householdId: string | null;
+  households: Household[];
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, username?: string) => Promise<void>;
+  register: (email: string, password: string, username?: string, inviteCode?: string) => Promise<void>;
   logout: () => void;
+  switchHousehold: (householdId: string) => Promise<void>;
+  refreshHouseholds: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -35,6 +40,7 @@ const EMPTY_AUTH: AuthData = { user: null, accessToken: null, refreshToken: null
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthData>(EMPTY_AUTH);
+  const [households, setHouseholds] = useState<Household[]>([]);
   const [loading, setLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const authRef = useRef(auth);
@@ -95,16 +101,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const registerUser = useCallback(
-    async (email: string, password: string, username?: string) => {
+    async (email: string, password: string, username?: string, inviteCode?: string) => {
       setLoading(true);
       try {
-        const res = await apiRegister(email, password, username);
-        persistAuth({
+        const res = await apiRegister(email, password, username, inviteCode);
+        const data: AuthData = {
           user: res.user,
           accessToken: res.access_token,
           refreshToken: res.refresh_token,
           householdId: res.household_id,
-        });
+        };
+        persistAuth(data);
+        setAuthToken(res.access_token);
+        const hh = await fetchHouseholds(res.access_token);
+        setHouseholds(hh);
       } finally {
         setLoading(false);
       }
@@ -112,12 +122,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persistAuth],
   );
 
+  const refreshHouseholds = useCallback(async () => {
+    const token = authRef.current.accessToken;
+    if (!token) return;
+    const hh = await fetchHouseholds(token);
+    setHouseholds(hh);
+  }, []);
+
+  const doSwitchHousehold = useCallback(
+    async (targetHouseholdId: string) => {
+      const res = await apiSwitchHousehold(targetHouseholdId);
+      persistAuth({
+        ...authRef.current,
+        accessToken: res.access_token,
+        householdId: res.household_id,
+      });
+    },
+    [persistAuth],
+  );
+
   // If authenticated but no householdId (e.g. old localStorage), fetch it
   useEffect(() => {
-    if (!auth.accessToken || auth.householdId) return;
-    fetchHouseholds(auth.accessToken).then((households) => {
-      if (households.length > 0) {
-        persistAuth({ ...authRef.current, householdId: households[0].id });
+    if (!auth.accessToken) return;
+    fetchHouseholds(auth.accessToken).then((hh) => {
+      setHouseholds(hh);
+      if (!auth.householdId && hh.length > 0) {
+        persistAuth({ ...authRef.current, householdId: hh[0].id });
       }
     }).catch(() => {});
   }, [auth.accessToken, auth.householdId, persistAuth]);
@@ -150,10 +180,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: auth.user,
         accessToken: auth.accessToken,
         householdId: auth.householdId,
+        households,
         loading: loading || !hydrated,
         login,
         register: registerUser,
         logout,
+        switchHousehold: doSwitchHousehold,
+        refreshHouseholds,
       }}
     >
       {children}

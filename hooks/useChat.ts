@@ -71,6 +71,19 @@ export function useChat({ nodeId, householdId, accessToken }: UseChatOptions): U
   const toolsRef = useRef<NodeToolsResponse | null>(null);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+  // Clear conversation state when user identity changes
+  const prevTokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (accessToken !== prevTokenRef.current) {
+      if (prevTokenRef.current !== null) {
+        // Identity changed — wipe old conversation to prevent memory bleed
+        setMessages([]);
+        setConversationId(null);
+      }
+      prevTokenRef.current = accessToken;
+    }
+  }, [accessToken]);
+
   // Startup: fetch tools → warmup conversation
   useEffect(() => {
     if (!nodeId || !householdId || !accessToken) {

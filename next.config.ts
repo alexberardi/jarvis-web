@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
         destination: `${AUTH_URL}/households/:path*`,
       },
       {
+        source: "/api/invites/:path*",
+        destination: `${AUTH_URL}/invites/:path*`,
+      },
+      {
         source: "/api/inbox/:path*",
         destination: `${NOTIFICATIONS_URL}/api/v0/inbox/:path*`,
       },

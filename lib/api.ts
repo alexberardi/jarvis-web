@@ -69,11 +69,13 @@ export async function register(
   email: string,
   password: string,
   username?: string,
+  inviteCode?: string,
 ): Promise<RegisterResponse> {
   const { data } = await apiClient.post<RegisterResponse>("/api/auth/register", {
     email,
     password,
     ...(username ? { username } : {}),
+    ...(inviteCode ? { invite_code: inviteCode } : {}),
   });
   return data;
 }
@@ -219,6 +221,7 @@ export interface NodeInfo {
   room: string | null;
   user: string | null;
   voice_mode: string;
+  household_id: string | null;
 }
 
 export async function fetchNodes(): Promise<NodeInfo[]> {
@@ -336,6 +339,87 @@ export async function getDeviceState(
   const { data } = await apiClient.get(
     `/api/cc/households/${householdId}/devices/${deviceId}/state`,
   );
+  return data;
+}
+
+// ─── Invite API ──────────────────────────────────────────────────────────
+
+export interface InviteCode {
+  id: number;
+  household_id: string;
+  code: string;
+  default_role: string;
+  max_uses: number | null;
+  use_count: number;
+  expires_at: string;
+  revoked: boolean;
+  created_at: string;
+}
+
+export interface InviteValidation {
+  valid: boolean;
+  household_name: string | null;
+}
+
+export async function createInvite(
+  householdId: string,
+  opts: { default_role?: string; max_uses?: number | null; expires_in_days?: number } = {},
+): Promise<InviteCode> {
+  const { data } = await apiClient.post<InviteCode>(
+    `/api/households/${householdId}/invites`,
+    { default_role: "member", expires_in_days: 7, ...opts },
+  );
+  return data;
+}
+
+export async function listInvites(householdId: string): Promise<InviteCode[]> {
+  const { data } = await apiClient.get<InviteCode[]>(`/api/households/${householdId}/invites`);
+  return data;
+}
+
+export async function revokeInvite(householdId: string, inviteId: number): Promise<void> {
+  await apiClient.delete(`/api/households/${householdId}/invites/${inviteId}`);
+}
+
+export async function validateInviteCode(code: string): Promise<InviteValidation> {
+  const { data } = await apiClient.get<InviteValidation>(`/api/invites/${code}/validate`);
+  return data;
+}
+
+export async function joinHousehold(inviteCode: string): Promise<{ household_id: string; household_name: string; role: string }> {
+  const { data } = await apiClient.post(`/api/households/join`, { invite_code: inviteCode });
+  return data;
+}
+
+export async function switchHousehold(householdId: string): Promise<{ access_token: string; household_id: string }> {
+  const { data } = await apiClient.post(`/api/auth/switch-household`, { household_id: householdId });
+  return data;
+}
+
+export interface HouseholdMember {
+  user_id: number;
+  username: string;
+  email: string;
+  role: string;
+  created_at: string;
+}
+
+export async function listMembers(householdId: string): Promise<HouseholdMember[]> {
+  const { data } = await apiClient.get<HouseholdMember[]>(`/api/households/${householdId}/members`);
+  return data;
+}
+
+export async function updateMemberRole(householdId: string, userId: number, role: string): Promise<HouseholdMember> {
+  const { data } = await apiClient.patch<HouseholdMember>(`/api/households/${householdId}/members/${userId}`, { role });
+  return data;
+}
+
+export async function removeMember(householdId: string, userId: number): Promise<void> {
+  await apiClient.delete(`/api/households/${householdId}/members/${userId}`);
+}
+
+export async function updateHouseholdName(householdId: string, name: string): Promise<Household> {
+  const { data } = await apiClient.patch<Household>(`/api/households/${householdId}`, { name });
   return data;
 }
 
