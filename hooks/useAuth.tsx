@@ -29,31 +29,35 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function loadStoredAuth(): AuthData {
-  if (typeof window === "undefined") return { user: null, accessToken: null, refreshToken: null, householdId: null };
-  try {
-    const raw = localStorage.getItem("jarvis_auth");
-    if (!raw) return { user: null, accessToken: null, refreshToken: null, householdId: null };
-    const parsed = JSON.parse(raw);
-    // Side-effect: configure axios header on load
-    if (parsed.accessToken) setAuthToken(parsed.accessToken);
-    return {
-      user: parsed.user ?? null,
-      accessToken: parsed.accessToken ?? null,
-      refreshToken: parsed.refreshToken ?? null,
-      householdId: parsed.householdId ?? null,
-    };
-  } catch {
-    localStorage.removeItem("jarvis_auth");
-    return { user: null, accessToken: null, refreshToken: null, householdId: null };
-  }
-}
+const EMPTY_AUTH: AuthData = { user: null, accessToken: null, refreshToken: null, householdId: null };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [auth, setAuth] = useState<AuthData>(loadStoredAuth);
+  const [auth, setAuth] = useState<AuthData>(EMPTY_AUTH);
   const [loading, setLoading] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const authRef = useRef(auth);
   authRef.current = auth;
+
+  // Restore auth from localStorage after mount (avoids SSR hydration mismatch)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("jarvis_auth");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const restored: AuthData = {
+          user: parsed.user ?? null,
+          accessToken: parsed.accessToken ?? null,
+          refreshToken: parsed.refreshToken ?? null,
+          householdId: parsed.householdId ?? null,
+        };
+        setAuth(restored);
+        setAuthToken(restored.accessToken);
+      }
+    } catch {
+      localStorage.removeItem("jarvis_auth");
+    }
+    setHydrated(true);
+  }, []);
 
   const persistAuth = useCallback((data: AuthData) => {
     setAuth(data);
@@ -126,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: auth.user,
         accessToken: auth.accessToken,
         householdId: auth.householdId,
-        loading,
+        loading: loading || !hydrated,
         login,
         logout,
       }}
