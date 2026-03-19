@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -91,18 +91,11 @@ export default function HouseholdSettingsPage() {
   }, [householdId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch pattern
     loadData();
-  }, [loadData]);
+    setNameInput(activeHousehold?.name ?? "");
+  }, [loadData, activeHousehold?.name]);
 
   const householdName = activeHousehold?.name ?? "";
-
-  // Sync nameInput when household changes (not during editing)
-  const prevHouseholdRef = useRef(householdId);
-  if (householdId !== prevHouseholdRef.current) {
-    prevHouseholdRef.current = householdId;
-    setNameInput(activeHousehold?.name ?? "");
-  }
 
   const handleSaveName = async () => {
     if (!householdId || !nameInput.trim()) return;
