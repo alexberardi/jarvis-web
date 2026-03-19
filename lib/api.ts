@@ -223,3 +223,118 @@ export async function fetchHouseholds(accessToken: string): Promise<Household[]>
   if (!res.ok) return [];
   return res.json();
 }
+
+// ─── Inbox API ────────────────────────────────────────────────────────────
+
+export interface InboxItem {
+  id: string;
+  user_id: number | null;
+  household_id: string;
+  title: string;
+  summary: string;
+  body: string;
+  category: string;
+  source_service: string;
+  metadata: Record<string, unknown> | null;
+  content_format: "markdown" | "html" | "plain" | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export async function listInboxItems(params?: {
+  category?: string;
+  is_read?: boolean;
+  limit?: number;
+}): Promise<InboxItem[]> {
+  const { data } = await apiClient.get<InboxItem[]>("/api/inbox", { params });
+  return data;
+}
+
+export async function getInboxItem(itemId: string): Promise<InboxItem> {
+  const { data } = await apiClient.get<InboxItem>(`/api/inbox/${itemId}`);
+  return data;
+}
+
+export async function getUnreadCount(): Promise<number> {
+  const { data } = await apiClient.get<{ count: number }>("/api/inbox/unread-count");
+  return data.count;
+}
+
+export async function markItemRead(itemId: string): Promise<void> {
+  await apiClient.patch(`/api/inbox/${itemId}/read`, {});
+}
+
+export async function deleteInboxItem(itemId: string): Promise<void> {
+  await apiClient.delete(`/api/inbox/${itemId}`);
+}
+
+// ─── Devices API ──────────────────────────────────────────────────────────
+
+export interface DeviceListItem {
+  id: string;
+  entity_id: string;
+  name: string;
+  domain: string;
+  source: string;
+  room_id: string | null;
+  room_name: string | null;
+  state: string | null;
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  household_id: string;
+}
+
+export async function listDevices(householdId: string): Promise<DeviceListItem[]> {
+  const { data } = await apiClient.get<DeviceListItem[]>(
+    `/api/cc/households/${householdId}/devices`,
+  );
+  return data;
+}
+
+export async function listRooms(householdId: string): Promise<Room[]> {
+  const { data } = await apiClient.get<Room[]>(
+    `/api/cc/households/${householdId}/rooms`,
+  );
+  return data;
+}
+
+export async function controlDevice(
+  householdId: string,
+  deviceId: string,
+  action: Record<string, unknown>,
+): Promise<void> {
+  await apiClient.post(
+    `/api/cc/households/${householdId}/devices/${deviceId}/control`,
+    action,
+  );
+}
+
+export async function getDeviceState(
+  householdId: string,
+  deviceId: string,
+): Promise<Record<string, unknown>> {
+  const { data } = await apiClient.get(
+    `/api/cc/households/${householdId}/devices/${deviceId}/state`,
+  );
+  return data;
+}
+
+// ─── Actions API ──────────────────────────────────────────────────────────
+
+export async function sendNodeAction(
+  nodeId: string,
+  payload: {
+    command_name: string;
+    action_name: string;
+    context: Record<string, unknown>;
+  },
+): Promise<Record<string, unknown>> {
+  const { data } = await apiClient.post(
+    `/api/cc/nodes/${nodeId}/actions`,
+    payload,
+  );
+  return data;
+}

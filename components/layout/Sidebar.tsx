@@ -1,18 +1,33 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { MessageSquare, LogOut } from "lucide-react";
+import { getUnreadCount } from "@/lib/api";
+import { Inbox, LogOut, MessageSquare, Power, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
   { label: "Chat", href: "/chat", icon: MessageSquare },
+  { label: "Inbox", href: "/inbox", icon: Inbox, badge: true },
+  { label: "Devices", href: "/devices", icon: Power },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, accessToken, logout } = useAuth();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    getUnreadCount().then(setUnread).catch(() => {});
+    const interval = setInterval(() => {
+      getUnreadCount().then(setUnread).catch(() => {});
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [accessToken]);
 
   return (
     <aside className="flex w-56 flex-col border-r border-zinc-800 bg-zinc-950">
@@ -29,14 +44,21 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
+                "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
                 active
                   ? "bg-primary/10 text-primary"
                   : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200",
               )}
             >
-              <Icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex items-center gap-2">
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </span>
+              {item.badge && unread > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
             </Link>
           );
         })}
