@@ -35,11 +35,12 @@ export default function PantryDetailPage() {
 
   useEffect(() => {
     if (!name) return;
-    setLoading(true);
+    let cancelled = false;
     getPackageDetail(name)
-      .then(setPkg)
-      .catch(() => setError("Could not load package"))
-      .finally(() => setLoading(false));
+      .then((data) => { if (!cancelled) setPkg(data); })
+      .catch(() => { if (!cancelled) setError("Could not load package"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [name]);
 
   useEffect(() => {
