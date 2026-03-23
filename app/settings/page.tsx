@@ -1,19 +1,48 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { getSmartHomeConfig, SmartHomeConfig, updateSmartHomeConfig } from "@/lib/api";
 import Link from "next/link";
-import { ChevronRight, Home, LogOut, User } from "lucide-react";
+import { ChevronRight, Home, Loader2, LogOut, Power, User } from "lucide-react";
 
 export default function SettingsPage() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, householdId, loading: authLoading, logout } = useAuth();
   const router = useRouter();
+  const [smartHomeConfig, setSmartHomeConfig] = useState<SmartHomeConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (!householdId) return;
+    setConfigLoading(true);
+    getSmartHomeConfig(householdId)
+      .then(setSmartHomeConfig)
+      .catch(() => {})
+      .finally(() => setConfigLoading(false));
+  }, [householdId]);
+
+  const handleExternalDevicesToggle = useCallback(async () => {
+    if (!householdId || !smartHomeConfig || toggling) return;
+    const prev = smartHomeConfig.use_external_devices;
+    const next = !prev;
+    setSmartHomeConfig((c) => c ? { ...c, use_external_devices: next } : c);
+    setToggling(true);
+    try {
+      const updated = await updateSmartHomeConfig(householdId, { use_external_devices: next });
+      setSmartHomeConfig((c) => c ? { ...c, ...updated } : c);
+    } catch {
+      setSmartHomeConfig((c) => c ? { ...c, use_external_devices: prev } : c);
+    } finally {
+      setToggling(false);
+    }
+  }, [householdId, smartHomeConfig, toggling]);
 
   if (authLoading || !user) return null;
 
@@ -68,6 +97,43 @@ export default function SettingsPage() {
                   <LogOut className="h-4 w-4" />
                   Sign out
                 </button>
+              </div>
+            </section>
+
+            {/* Smart Home */}
+            <section>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Smart Home
+              </h2>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Power className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-zinc-100">Use External Devices</p>
+                      <p className="text-xs text-zinc-500">
+                        Show devices from your device manager (read-only)
+                      </p>
+                    </div>
+                  </div>
+                  {configLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+                  ) : (
+                    <button
+                      onClick={handleExternalDevicesToggle}
+                      disabled={toggling || !smartHomeConfig}
+                      className="relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50"
+                      style={{ backgroundColor: smartHomeConfig?.use_external_devices ? "var(--color-primary)" : "#3f3f46" }}
+                    >
+                      <span
+                        className="absolute top-0.5 block h-5 w-5 rounded-full bg-white shadow transition-transform"
+                        style={{ transform: smartHomeConfig?.use_external_devices ? "translateX(22px)" : "translateX(2px)" }}
+                      />
+                    </button>
+                  )}
+                </div>
               </div>
             </section>
 

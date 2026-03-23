@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import {
+  createHousehold,
   createInvite,
   joinHousehold,
+  leaveHousehold,
   listInvites,
   listMembers,
   removeMember,
@@ -16,7 +18,7 @@ import {
   updateMemberRole,
   validateInviteCode,
 } from "@/lib/api";
-import { Check, ClipboardCopy, Plus, Trash2, X } from "lucide-react";
+import { Check, ClipboardCopy, Home, LogOut, Plus, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ROLES = ["member", "power_user", "admin"] as const;
@@ -53,6 +55,15 @@ export default function HouseholdSettingsPage() {
   const [joinStatus, setJoinStatus] = useState<{ valid: boolean; household_name: string | null } | null>(null);
   const [joinError, setJoinError] = useState("");
 
+  // Create household flow
+  const [showCreateHousehold, setShowCreateHousehold] = useState(false);
+  const [newHouseholdName, setNewHouseholdName] = useState("");
+  const [createError, setCreateError] = useState("");
+
+  // Leave flow
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [leaveError, setLeaveError] = useState("");
+
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
@@ -72,6 +83,7 @@ export default function HouseholdSettingsPage() {
   const activeHousehold = households.find((h) => h.id === householdId);
   const myMembership = members.find((m) => m.user_id === user?.id);
   const isAdmin = myMembership?.role === "admin";
+  const canLeave = households.length > 1;
 
   const loadError = membersError ? "Failed to load members" : "";
   const householdName = activeHousehold?.name ?? "";
@@ -127,6 +139,35 @@ export default function HouseholdSettingsPage() {
     if (!householdId) return;
     await removeMember(householdId, userId);
     loadData();
+  };
+
+  const handleLeave = async () => {
+    if (!householdId) return;
+    setLeaveError("");
+    try {
+      await leaveHousehold(householdId);
+      setShowLeaveConfirm(false);
+      refreshHouseholds();
+      router.replace("/chat");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed to leave household";
+      setLeaveError(msg);
+    }
+  };
+
+  const handleCreateHousehold = async () => {
+    const name = newHouseholdName.trim();
+    if (!name) return;
+    setCreateError("");
+    try {
+      await createHousehold(name);
+      setNewHouseholdName("");
+      setShowCreateHousehold(false);
+      refreshHouseholds();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed to create household";
+      setCreateError(msg);
+    }
   };
 
   const handleValidateJoin = async () => {
@@ -392,6 +433,104 @@ export default function HouseholdSettingsPage() {
                 )}
               </div>
             </section>
+
+            {/* Create New Household */}
+            <section>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Create New Household
+              </h2>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                {showCreateHousehold ? (
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={newHouseholdName}
+                      onChange={(e) => setNewHouseholdName(e.target.value)}
+                      placeholder="Household name"
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none placeholder-zinc-600 focus:border-primary"
+                      autoFocus
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateHousehold()}
+                    />
+                    {createError && <p className="text-xs text-red-400">{createError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleCreateHousehold}
+                        disabled={!newHouseholdName.trim()}
+                        className="rounded-lg bg-primary-deep px-4 py-1.5 text-xs font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+                      >
+                        Create
+                      </button>
+                      <button
+                        onClick={() => { setShowCreateHousehold(false); setNewHouseholdName(""); setCreateError(""); }}
+                        className="rounded-lg border border-zinc-700 px-4 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowCreateHousehold(true)}
+                    className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-hover"
+                  >
+                    <Home className="h-3.5 w-3.5" />
+                    Create a new household
+                  </button>
+                )}
+              </div>
+            </section>
+
+            {/* Leave Household */}
+            {canLeave && (
+              <section>
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Danger Zone
+                </h2>
+                <div className="rounded-xl border border-red-900/50 bg-zinc-900 p-4">
+                  {showLeaveConfirm ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-zinc-300">
+                        Are you sure you want to leave <strong>{householdName}</strong>?
+                        {members.length === 1 && " This household will be deleted since you're the only member."}
+                      </p>
+                      {leaveError && (
+                        <p className="text-xs text-red-400">{leaveError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleLeave}
+                          className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-red-500"
+                        >
+                          Leave Household
+                        </button>
+                        <button
+                          onClick={() => { setShowLeaveConfirm(false); setLeaveError(""); }}
+                          className="rounded-lg border border-zinc-700 px-4 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-100">Leave this household</p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          You&apos;ll lose access to this household&apos;s nodes and settings.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowLeaveConfirm(true)}
+                        className="flex items-center gap-1.5 rounded-lg border border-red-900/50 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-900/20"
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        Leave
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { getUnreadCount } from "@/lib/api";
-import { Check, ChevronDown, Inbox, LogOut, MessageSquare, Power, Settings } from "lucide-react";
+import { Check, ChevronDown, Inbox, LogOut, MessageSquare, Package, Power, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -12,6 +12,7 @@ const navItems = [
   { label: "Chat", href: "/chat", icon: MessageSquare },
   { label: "Inbox", href: "/inbox", icon: Inbox, badge: true },
   { label: "Devices", href: "/devices", icon: Power },
+  { label: "Pantry", href: "/pantry", icon: Package },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 

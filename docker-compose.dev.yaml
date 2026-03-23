@@ -1,0 +1,21 @@
+services:
+  jarvis-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "7722:7722"
+    volumes:
+      - ./app:/app/app
+      - ./components:/app/components
+      - ./hooks:/app/hooks
+      - ./lib:/app/lib
+      - ./public:/app/public
+      - ./next.config.ts:/app/next.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./postcss.config.mjs:/app/postcss.config.mjs
+      - ./.env:/app/.env
+    env_file:
+      - .env
+    extra_hosts:
+      - "${DOCKER_HOST_ALIAS:-host.docker.internal}:host-gateway"

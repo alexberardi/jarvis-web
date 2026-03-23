@@ -342,6 +342,73 @@ export async function getDeviceState(
   return data;
 }
 
+// ─── Smart Home Config API ────────────────────────────────────────────────
+
+export interface SmartHomeConfig {
+  device_manager: string;
+  primary_node_id: string;
+  use_external_devices: boolean;
+  nodes: { node_id: string; room: string | null; online: boolean; last_seen: string | null }[];
+}
+
+export async function getSmartHomeConfig(householdId: string): Promise<SmartHomeConfig> {
+  const { data } = await apiClient.get<SmartHomeConfig>(
+    `/api/cc/households/${householdId}/smart-home/config`,
+  );
+  return data;
+}
+
+export async function updateSmartHomeConfig(
+  householdId: string,
+  updates: { device_manager?: string; primary_node_id?: string; use_external_devices?: boolean },
+): Promise<SmartHomeConfig> {
+  const { data } = await apiClient.put<SmartHomeConfig>(
+    `/api/cc/households/${householdId}/smart-home/config`,
+    updates,
+  );
+  return data;
+}
+
+// ─── External Devices API ────────────────────────────────────────────────
+
+export interface ExternalDeviceItem {
+  name: string;
+  domain: string;
+  entity_id: string;
+  is_controllable: boolean;
+  manufacturer: string | null;
+  model: string | null;
+  source: string;
+  area: string | null;
+  state: string | null;
+}
+
+export interface DeviceListPollResponse {
+  status: "pending" | "completed" | "failed";
+  request_id: string;
+  manager_name: string | null;
+  devices: ExternalDeviceItem[] | null;
+  device_count: number | null;
+  error_message: string | null;
+}
+
+export async function requestDeviceList(nodeId: string): Promise<{ id: string; status: string }> {
+  const { data } = await apiClient.post<{ id: string; status: string }>(
+    `/api/cc/nodes/${nodeId}/device-list/request`,
+  );
+  return data;
+}
+
+export async function pollDeviceList(
+  nodeId: string,
+  requestId: string,
+): Promise<DeviceListPollResponse> {
+  const { data } = await apiClient.get<DeviceListPollResponse>(
+    `/api/cc/nodes/${nodeId}/device-list/${requestId}`,
+  );
+  return data;
+}
+
 // ─── Invite API ──────────────────────────────────────────────────────────
 
 export interface InviteCode {
@@ -418,8 +485,91 @@ export async function removeMember(householdId: string, userId: number): Promise
   await apiClient.delete(`/api/households/${householdId}/members/${userId}`);
 }
 
+export async function leaveHousehold(householdId: string): Promise<{ left: boolean; household_id: string; household_deleted: boolean }> {
+  const resp = await apiClient.post(`/api/households/${householdId}/leave`);
+  return resp.data;
+}
+
+export async function createHousehold(name: string): Promise<Household> {
+  const { data } = await apiClient.post<Household>(`/api/households`, { name });
+  return data;
+}
+
 export async function updateHouseholdName(householdId: string, name: string): Promise<Household> {
   const { data } = await apiClient.patch<Household>(`/api/households/${householdId}`, { name });
+  return data;
+}
+
+// ─── Pantry API ──────────────────────────────────────────────────────────
+
+export interface PantryCommand {
+  command_name: string;
+  display_name: string;
+  description: string;
+  author: string;
+  latest_version: string;
+  categories: string[];
+  install_count: number;
+  danger_rating: number;
+  verified: boolean;
+  icon_url: string | null;
+  package_type: "command" | "bundle";
+  components: string[];
+}
+
+export interface PantryBrowseResponse {
+  commands: PantryCommand[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface PantryCategory {
+  name: string;
+  count: number;
+}
+
+export interface PantryAuthor {
+  github: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+export interface PantryCommandDetail extends Omit<PantryCommand, "author"> {
+  github_repo_url: string;
+  author: string | PantryAuthor;
+  platforms: string[];
+  license: string | null;
+  security_report: {
+    summary: string;
+    danger_score: number;
+    concerns: string[];
+    recommendation: string;
+  } | null;
+  review_count: number;
+  avg_rating: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function browsePackages(params: {
+  q?: string;
+  category?: string;
+  sort?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<PantryBrowseResponse> {
+  const { data } = await apiClient.get<PantryBrowseResponse>("/api/pantry/commands", { params });
+  return data;
+}
+
+export async function getCategories(): Promise<PantryCategory[]> {
+  const { data } = await apiClient.get<{ categories: PantryCategory[] }>("/api/pantry/categories");
+  return data.categories;
+}
+
+export async function getPackageDetail(commandName: string): Promise<PantryCommandDetail> {
+  const { data } = await apiClient.get<PantryCommandDetail>(`/api/pantry/commands/${commandName}`);
   return data;
 }
 

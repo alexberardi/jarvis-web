@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const CC_URL = process.env.COMMAND_CENTER_URL ?? "http://localhost:7703";
 const AUTH_URL = process.env.AUTH_URL ?? "http://localhost:7701";
 const NOTIFICATIONS_URL = process.env.NOTIFICATIONS_URL ?? "http://localhost:7712";
+const PANTRY_URL = process.env.PANTRY_URL ?? "http://localhost:7721";
 
 const nextConfig: NextConfig = {
   async rewrites() {
@@ -22,6 +23,10 @@ const nextConfig: NextConfig = {
       {
         source: "/api/inbox/:path*",
         destination: `${NOTIFICATIONS_URL}/api/v0/inbox/:path*`,
+      },
+      {
+        source: "/api/pantry/:path*",
+        destination: `${PANTRY_URL}/v1/:path*`,
       },
       {
         source: "/api/cc/:path*",

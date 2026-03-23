@@ -3,7 +3,7 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --color-primary: #c084fc;
-  --color-primary-hover: #a855f7;
-  --color-primary-deep: #8A00C4;
+  --color-primary: #B39DDB;
+  --color-primary-hover: #9575CD;
+  --color-primary-deep: #7E57C2;
 }
