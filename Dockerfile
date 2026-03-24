@@ -1,7 +1,7 @@
 FROM node:22 AS builder
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm install && npm install lightningcss
+COPY package.json ./
+RUN npm install
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
