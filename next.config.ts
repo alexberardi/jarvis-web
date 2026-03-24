@@ -6,6 +6,7 @@ const NOTIFICATIONS_URL = process.env.NOTIFICATIONS_URL ?? "http://localhost:771
 const PANTRY_URL = process.env.PANTRY_URL ?? "http://localhost:7721";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   async rewrites() {
     return [
       {
