@@ -49,7 +49,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-${{ steps.slug.outputs.slug }}
-          cache-from: type=gha,scope=${{ steps.slug.outputs.slug }}
+          # Skip cache on tag pushes — GHA cache can serve stale layers
+          cache-from: ${{ !startsWith(github.ref, 'refs/tags/') && format('type=gha,scope={0}', steps.slug.outputs.slug) || '' }}
           cache-to: type=gha,scope=${{ steps.slug.outputs.slug }},mode=max
 
   manifest:
