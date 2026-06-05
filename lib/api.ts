@@ -288,6 +288,24 @@ export async function deleteInboxItem(itemId: string): Promise<void> {
   await apiClient.delete(`/api/inbox/${itemId}`);
 }
 
+export async function bulkMarkItemsRead(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const { data } = await apiClient.post<{ updated: number }>(
+    "/api/inbox/bulk/read",
+    { ids },
+  );
+  return data.updated;
+}
+
+export async function bulkDeleteInboxItems(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const { data } = await apiClient.post<{ deleted: number }>(
+    "/api/inbox/bulk/delete",
+    { ids },
+  );
+  return data.deleted;
+}
+
 // ─── Devices API ──────────────────────────────────────────────────────────
 
 export interface DeviceListItem {
