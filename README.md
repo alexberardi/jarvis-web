@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# jarvis-web
 
-## Getting Started
+Browser chat client for [Jarvis](https://github.com/alexberardi/jarvis), the self-hosted private voice assistant.
 
-First, run the development server:
+A **thin Next.js frontend** (App Router, standalone output). It holds no business logic and no database — every API call is a Next.js rewrite to a backend service. If you find yourself writing logic here, it probably belongs in the backend the rewrite points at.
+
+## What it does
+
+Provides the web UX for Jarvis: chat (SSE-streamed responses), inbox, device/node management, household settings, and the package store (pantry). All requests are proxied to backend services via `next.config.ts` rewrites:
+
+| Path | Rewrites to | Service |
+|---|---|---|
+| `/api/auth/*` | `${AUTH_URL}/auth/*` | jarvis-auth |
+| `/api/households/*` | `${AUTH_URL}/households/*` | jarvis-auth |
+| `/api/invites/*` | `${AUTH_URL}/invites/*` | jarvis-auth |
+| `/api/cc/*` | `${COMMAND_CENTER_URL}/api/v0/*` | jarvis-command-center |
+| `/api/inbox/*` | `${NOTIFICATIONS_URL}/api/v0/inbox/*` | jarvis-notifications |
+| `/api/pantry/*` | `${PANTRY_URL}/v1/*` | jarvis-pantry |
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env        # then edit the *_URL values if your backends aren't all on localhost
+npm run dev                 # http://localhost:7722
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Other scripts:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build && npm start  # production build (standalone output)
+npm test                    # Jest
+npm run lint                # ESLint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment variables
 
-## Learn More
+All optional — each falls back to a localhost default. Set them when a backend service runs on a different host or port. See `.env.example`.
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `7722` | Dev/prod server port |
+| `AUTH_URL` | `http://localhost:7701` | jarvis-auth target for rewrites |
+| `COMMAND_CENTER_URL` | `http://localhost:7703` | jarvis-command-center target |
+| `NOTIFICATIONS_URL` | `http://localhost:7712` | jarvis-notifications target |
+| `PANTRY_URL` | `http://localhost:7721` | jarvis-pantry target |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Next.js 16** (App Router, standalone output, TypeScript)
+- **React 19** + TanStack Query
+- **Tailwind CSS v4** (dark theme)
+- **Axios** with auth interceptor + token refresh
+- **Jest** for tests
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [LICENSE](LICENSE) (AGPL-3.0).
