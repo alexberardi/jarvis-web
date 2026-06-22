@@ -1,0 +1,2 @@
+# Keeps the Next.js public/ dir tracked so the Docker build COPY /app/public
+# succeeds in a fresh checkout (git does not track empty dirs).
