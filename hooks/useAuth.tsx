@@ -4,10 +4,12 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import {
   AuthUser,
   Household,
+  changePassword as apiChangePassword,
   fetchHouseholds,
   login as apiLogin,
   register as apiRegister,
   refreshToken as apiRefresh,
+  serverLogout,
   switchHousehold as apiSwitchHousehold,
   setAuthToken,
   setRefreshFunction,
@@ -19,6 +21,9 @@ interface AuthData {
   accessToken: string | null;
   refreshToken: string | null;
   householdId: string | null;
+  /** Session opened with an admin-issued temporary password — gate on
+   *  /change-password until a real one is set. */
+  mustChangePassword: boolean;
 }
 
 interface AuthContextValue {
@@ -27,8 +32,13 @@ interface AuthContextValue {
   householdId: string | null;
   households: Household[];
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  mustChangePassword: boolean;
+  login: (email: string, password: string) => Promise<{ mustChangePassword: boolean }>;
   register: (email: string, password: string, username?: string, inviteCode?: string) => Promise<void>;
+  /** `currentPassword` may be omitted right after a temp-password login (the
+   *  login form's password is held in memory); after a reload it's required. */
+  changePassword: (newPassword: string, currentPassword?: string) => Promise<void>;
+  hasTempPassword: () => boolean;
   logout: () => void;
   switchHousehold: (householdId: string) => Promise<void>;
   refreshHouseholds: () => Promise<void>;
@@ -36,7 +46,13 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const EMPTY_AUTH: AuthData = { user: null, accessToken: null, refreshToken: null, householdId: null };
+const EMPTY_AUTH: AuthData = {
+  user: null,
+  accessToken: null,
+  refreshToken: null,
+  householdId: null,
+  mustChangePassword: false,
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthData>(EMPTY_AUTH);
@@ -45,6 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const authRef = useRef(auth);
   authRef.current = auth;
+
+  // Memory-only (never persisted): lets /change-password submit the temp
+  // password without the user retyping it. Gone after a reload — the page
+  // then asks for the current (temp) password.
+  const tempPasswordRef = useRef<string | null>(null);
 
   // Restore auth from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
@@ -57,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           accessToken: parsed.accessToken ?? null,
           refreshToken: parsed.refreshToken ?? null,
           householdId: parsed.householdId ?? null,
+          mustChangePassword: parsed.mustChangePassword ?? false,
         };
         setAuth(restored);
         setAuthToken(restored.accessToken);
@@ -74,7 +96,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    setAuth({ user: null, accessToken: null, refreshToken: null, householdId: null });
+    // Best-effort server-side revoke (fire-and-forget): ends this session's
+    // refresh-token family instead of leaving it valid for 14 more days.
+    const rt = authRef.current.refreshToken;
+    if (rt) {
+      serverLogout(rt).catch(() => {});
+    }
+    tempPasswordRef.current = null;
+    setAuth(EMPTY_AUTH);
     setAuthToken(null);
     localStorage.removeItem("jarvis_auth");
   }, []);
@@ -87,18 +116,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthToken(res.access_token);
         const households = await fetchHouseholds(res.access_token);
         const hId = households.length > 0 ? households[0].id : null;
+        const mustChangePassword = !!res.must_change_password;
+        tempPasswordRef.current = mustChangePassword ? password : null;
         persistAuth({
           user: res.user,
           accessToken: res.access_token,
           refreshToken: res.refresh_token,
           householdId: hId,
+          mustChangePassword,
         });
+        return { mustChangePassword };
       } finally {
         setLoading(false);
       }
     },
     [persistAuth],
   );
+
+  const changePassword = useCallback(
+    async (newPassword: string, currentPassword?: string) => {
+      const current = currentPassword ?? tempPasswordRef.current;
+      if (!current) throw new Error("Current password is required.");
+      const res = await apiChangePassword(current, newPassword);
+      // Adopt the fresh pair — the server revoked every other session.
+      setAuthToken(res.access_token);
+      tempPasswordRef.current = null;
+      persistAuth({
+        ...authRef.current,
+        user: res.user,
+        accessToken: res.access_token,
+        refreshToken: res.refresh_token,
+        mustChangePassword: false,
+      });
+    },
+    [persistAuth],
+  );
+
+  const hasTempPassword = useCallback(() => tempPasswordRef.current != null, []);
 
   const registerUser = useCallback(
     async (email: string, password: string, username?: string, inviteCode?: string) => {
@@ -110,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           accessToken: res.access_token,
           refreshToken: res.refresh_token,
           householdId: res.household_id,
+          mustChangePassword: false,
         };
         persistAuth(data);
         setAuthToken(res.access_token);
@@ -182,8 +237,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         householdId: auth.householdId,
         households,
         loading: loading || !hydrated,
+        mustChangePassword: auth.mustChangePassword,
         login,
         register: registerUser,
+        changePassword,
+        hasTempPassword,
         logout,
         switchHousehold: doSwitchHousehold,
         refreshHouseholds,

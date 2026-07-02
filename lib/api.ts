@@ -54,11 +54,34 @@ interface TokenResponse {
   refresh_token: string;
   token_type: "bearer";
   user: AuthUser;
+  /** Set when the login used an admin-issued temporary password — the user
+   *  must change it via changePassword() before normal use. */
+  must_change_password?: boolean;
 }
 
 export async function login(email: string, password: string): Promise<TokenResponse> {
   const { data } = await apiClient.post<TokenResponse>("/api/auth/login", { email, password });
   return data;
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<TokenResponse> {
+  // Server revokes every other session and returns a fresh token pair the
+  // caller must adopt. 401 here means wrong current password (the /api/auth/*
+  // interceptor exemption keeps it from triggering a token refresh).
+  const { data } = await apiClient.post<TokenResponse>("/api/auth/change-password", {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+  return data;
+}
+
+export async function serverLogout(refreshToken: string): Promise<void> {
+  // Revokes this session's refresh-token family server-side. Callers treat it
+  // as best-effort (fire-and-forget) — local logout never depends on it.
+  await apiClient.post("/api/auth/logout", { refresh_token: refreshToken });
 }
 
 interface RegisterResponse extends TokenResponse {

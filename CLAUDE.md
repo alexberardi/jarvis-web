@@ -68,6 +68,7 @@ npm test                   # Jest
 | `/` | Redirects to `/chat` or `/login` | — |
 | `/login` | Email + password login | auth `/auth/login` |
 | `/register` | New account + auto-login | auth `/auth/register` |
+| `/change-password` | Forced after a temp-password login (admin reset); also works as voluntary change | auth `/auth/change-password` |
 | `/chat` | **Main chat UX** — SSE-streamed responses, node selector, action buttons | CC `/voice/command(/stream)`, `/conversation/start` |
 | `/inbox` | Inbox list + detail view | notifications `/inbox` |
 | `/inbox/[id]` | Single inbox item with actions (Send / Cancel / etc.) | notifications + CC for action dispatch |

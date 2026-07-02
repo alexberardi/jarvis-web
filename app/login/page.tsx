@@ -19,8 +19,9 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
-      router.replace("/chat");
+      const { mustChangePassword } = await login(email, password);
+      // Temp-password login (admin reset): set a real password before chat.
+      router.replace(mustChangePassword ? "/change-password" : "/chat");
     } catch (err) {
       if (err instanceof AxiosError) {
         setError(err.response?.data?.detail ?? err.message);
