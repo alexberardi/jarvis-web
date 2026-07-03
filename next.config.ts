@@ -7,6 +7,25 @@ const PANTRY_URL = process.env.PANTRY_URL ?? "http://localhost:7721";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Anti-clickjacking + hardening headers. Scoped to the set that's safe for a
+  // Next.js app (no script/style-src restriction → inline hydration unaffected);
+  // a full script-src CSP would need nonce middleware and is deferred.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+          },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     return [
       {
