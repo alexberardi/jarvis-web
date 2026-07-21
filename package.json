@@ -11,7 +11,7 @@
     "test:ci": "jest --ci --coverage"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-query": "^5.101.3",
     "axios": "^1.18.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.577.0",
