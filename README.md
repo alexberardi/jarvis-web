@@ -1,5 +1,10 @@
 # jarvis-web
 
+> [!WARNING]
+> **Deprecated: jarvis-web is retired and no longer maintained.** Browser chat now lives in the web app built into jarvisd, the single-binary server in [jarvis-server](https://github.com/alexberardi/jarvis-server): open `http://<server>:7710` and sign in. Every household member gets Chat, Add-ons, Inbox and Account there. Registration, household management and smart-home devices are in the mobile app.
+>
+> The image build (`docker-build-push.yml`) and the install-e2e trigger are disabled, not deleted (`gh workflow enable` restores them). The last published `ghcr.io/alexberardi/jarvis-web` image stays available for existing installs.
+
 Browser chat client for [Jarvis](https://github.com/alexberardi/jarvis), the self-hosted private voice assistant.
 
 A **thin Next.js frontend** (App Router, standalone output). It holds no business logic and no database — every API call is a Next.js rewrite to a backend service. If you find yourself writing logic here, it probably belongs in the backend the rewrite points at.
